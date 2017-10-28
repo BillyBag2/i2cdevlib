@@ -35,6 +35,29 @@ THE SOFTWARE.
 */
 
 #include "MPU6050.h"
+#include <string.h>
+
+#define I2C_NUM I2C_NUM_0
+
+void MPU6050::ReadRegister(uint8_t reg, uint8_t *data, uint8_t len){
+	uint8_t dev = 0x68;
+	i2c_cmd_handle_t cmd;
+	I2Cdev::SelectRegister(dev, reg);
+
+	cmd = i2c_cmd_link_create();
+	ESP_ERROR_CHECK(i2c_master_start(cmd));
+	ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (dev << 1) | I2C_MASTER_READ, 1));
+
+	if(len>1)
+		ESP_ERROR_CHECK(i2c_master_read(cmd, data, len, 0));
+
+	ESP_ERROR_CHECK(i2c_master_read_byte(cmd, data+len-1, 1));
+
+	ESP_ERROR_CHECK(i2c_master_stop(cmd));
+	ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM, cmd, 1000));
+	i2c_cmd_link_delete(cmd);
+}
+
 
 /** Default constructor, uses default I2C address.
  * @see MPU6050_DEFAULT_ADDRESS
@@ -3034,8 +3057,8 @@ void MPU6050::readMemoryBlock(uint8_t *data, uint16_t dataSize, uint8_t bank, ui
     }
 }
 bool MPU6050::writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t bank, uint8_t address, bool verify, bool useProgMem) {
-    setMemoryBank(bank);
-    setMemoryStartAddress(address);
+	setMemoryBank(bank);
+	setMemoryStartAddress(address);
     uint8_t chunkSize;
     uint8_t *verifyBuffer=0;
     uint8_t *progBuffer=0;
@@ -3065,30 +3088,28 @@ bool MPU6050::writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t b
 
         // verify data if needed
         if (verify && verifyBuffer) {
+        	printf("VERIFY\n");
             setMemoryBank(bank);
             setMemoryStartAddress(address);
             I2Cdev::readBytes(devAddr, MPU6050_RA_MEM_R_W, chunkSize, verifyBuffer);
             if (memcmp(progBuffer, verifyBuffer, chunkSize) != 0) {
-                /*Serial.print("Block write verification error, bank ");
-                Serial.print(bank, DEC);
-                Serial.print(", address ");
-                Serial.print(address, DEC);
-                Serial.print("!\nExpected:");
+            	printf("Block write verification error, bank \n");
+                /*Serial.print("Block write verification error, bank ");*/
+                printf("bank %d", bank);
+                printf(", address ");
+                printf("%d", address);
+                printf("!\nExpected:");
                 for (j = 0; j < chunkSize; j++) {
-                    Serial.print(" 0x");
-                    if (progBuffer[j] < 16) Serial.print("0");
-                    Serial.print(progBuffer[j], HEX);
+                    printf("%#04x", progBuffer[j]);
                 }
-                Serial.print("\nReceived:");
+                printf("\nReceived:");
                 for (uint8_t j = 0; j < chunkSize; j++) {
-                    Serial.print(" 0x");
-                    if (verifyBuffer[i + j] < 16) Serial.print("0");
-                    Serial.print(verifyBuffer[i + j], HEX);
+                    printf("%#04x", verifyBuffer[i + j]);
                 }
-                Serial.print("\n");*/
-                free(verifyBuffer);
-                if (useProgMem) free(progBuffer);
-                return false; // uh oh.
+                printf("\n");
+                //free(verifyBuffer);
+                //if (useProgMem) free(progBuffer);
+                //return false; // uh oh.
             }
         }
 
@@ -3110,7 +3131,7 @@ bool MPU6050::writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t b
     return true;
 }
 bool MPU6050::writeProgMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t bank, uint8_t address, bool verify) {
-    return writeMemoryBlock(data, dataSize, bank, address, verify, true);
+	return writeMemoryBlock(data, dataSize, bank, address, verify, false);
 }
 bool MPU6050::writeDMPConfigurationSet(const uint8_t *data, uint16_t dataSize, bool useProgMem) {
     uint8_t *progBuffer = 0;
